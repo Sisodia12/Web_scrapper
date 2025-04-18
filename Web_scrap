@@ -1,0 +1,80 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import matplotlib.pyplot as plt
+from collections import Counter
+
+# Step 1: Scrape Data
+def scrape_quotes(base_url, pages=5):
+    data = []
+    for page in range(1, pages + 1):
+        url = f"{base_url}/page/{page}/"
+        response = requests.get(url)
+        
+        if response.status_code != 200:
+            print(f"Failed to retrieve page {page}")
+            continue
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        quotes = soup.find_all("div", class_="quote")
+        
+        for quote in quotes:
+            text = quote.find("span", class_="text").text.strip()
+            author = quote.find("small", class_="author").text.strip()
+            tags = [tag.text for tag in quote.find_all("a", class_="tag")]
+            data.append([text, author, ", ".join(tags)])
+    
+    return data
+
+# Scrape data
+base_url = "http://quotes.toscrape.com"
+quote_data = scrape_quotes(base_url, pages=5)
+
+# Step 2: Store in Pandas DataFrame
+df = pd.DataFrame(quote_data, columns=["Quote", "Author", "Tags"])
+
+# Step 3: Clean Data
+df.drop_duplicates(inplace=True)  # Remove duplicates
+df.dropna(inplace=True)  # Drop missing values
+
+# Step 4: Exploratory Data Analysis (EDA)
+# 1. Most Quoted Authors
+author_counts = df["Author"].value_counts().head(10)
+plt.figure(figsize=(10, 5))
+author_counts.plot(kind='bar', color='skyblue')
+plt.title("Top 10 Most Quoted Authors")
+plt.xlabel("Author")
+plt.ylabel("Number of Quotes")
+plt.xticks(rotation=45)
+plt.show()
+
+# 2. Most Common Tags
+tag_list = ", ".join(df["Tags"].dropna()).split(", ")
+tag_counts = Counter(tag_list)
+top_tags = dict(tag_counts.most_common(10))
+
+plt.figure(figsize=(10, 5))
+plt.bar(top_tags.keys(), top_tags.values(), color='orange')
+plt.title("Top 10 Most Common Tags")
+plt.xlabel("Tag")
+plt.ylabel("Count")
+plt.xticks(rotation=45)
+plt.show()
+
+# 3. Word Frequency in Quotes
+# Corrected the regex to avoid SyntaxWarning
+word_list = " ".join(df["Quote"].str.replace(r"[^\w\s]", "", regex=True).str.lower()).split()
+word_counts = Counter(word_list)
+top_words = dict(word_counts.most_common(10))
+
+plt.figure(figsize=(10, 5))
+plt.bar(top_words.keys(), top_words.values(), color='purple')
+plt.title("Top 10 Most Common Words in Quotes")
+plt.xlabel("Word")
+plt.ylabel("Frequency")
+plt.xticks(rotation=45)
+plt.show()
+
+# Save Cleaned Data
+df.to_csv("quotes_data.csv", index=False)
+print("Scraping and Analysis Complete. Data saved to 'quotes_data.csv'")
